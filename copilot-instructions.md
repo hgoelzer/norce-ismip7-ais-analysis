@@ -44,7 +44,8 @@ processing side). Three plotting scripts, one shared scaling config.
 - Experiments: C001/C002 historical (CESM2-WACCM / MRI-ESM2-0, 1970–2014),
   C003/C004 ssp370 (→2100), C005/C006 ssp126 (→2300), C007/C008 ssp585
   (→2300), C009/C010 ctrl (→2300), C011 ocx (ERA, 1990–2025). NCAR lab has
-  only C001 + C007 (2000–2014 / 2015–2300).
+  only C001 + C007 (2000–2014 / 2015–2300). CISM8 has all 11 (C007 ends
+  2224, the rest reach 2300).
 
 ## Conventions & pitfalls
 
@@ -53,9 +54,12 @@ processing side). Three plotting scripts, one shared scaling config.
   from its own series.
 - Global y-axis scaling (from `config.py`) applies ONLY to anomaly plots;
   absolute plots auto-scale.
-- `LITHK_VMAX` in `config.py` is guided by the largest ranges across all
-  labs (currently NCAR C007); the scripts print a WARNING when a field
-  exceeds the bound — update `config.py` then.
+- `LITHK_VMAX` and `SLC_YLIM` in `config.py` are guided by the largest
+  ranges across all labs (LITHK: NCAR C007; SLC: NORCE C007 high end,
+  CISM8 C007 low end — it gains mass first, SLC −43 mm at 2100, then
+  +93 mm by 2224). The scripts print a WARNING when a field exceeds a
+  bound — update `config.py` then and regenerate the affected plots for
+  ALL labs so the common scale holds.
 - File naming: `{var}[-anom]_{model_lab}_{endyear}.png`; titles carry
   `{exp_id} {exp} {esm}: ...` and no "rel. to end of historical" text.
 - An experiment may end before 2300 (e.g. CISM8 C007 ends 2224) — the
@@ -67,5 +71,8 @@ processing side). Three plotting scripts, one shared scaling config.
 ## Workflow conventions
 
 - User drives step-by-step; confirm before regenerating large plot batches.
+- This folder is a git repo (remote
+  `git@github.com:hgoelzer/norce-ismip7-ais-analysis.git`, branch `main`).
+  PNG outputs are git-ignored; commit scripts + `config.py` changes.
 - Commit messages: concise imperative summary + bullet body of the
   substantive changes.
