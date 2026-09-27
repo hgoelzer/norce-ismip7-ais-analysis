@@ -1,0 +1,6 @@
+# PNG plot outputs
+Plots/**/*.png
+
+# Python
+__pycache__/
+*.pyc

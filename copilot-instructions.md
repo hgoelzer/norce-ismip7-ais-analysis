@@ -1,0 +1,71 @@
+# Copilot Instructions — NORCE ISMIP7 AIS Analysis
+
+Plotting and analysis of the ISMIP7-compliant NetCDF output produced by
+`../norce-ismip7-ais-processing/` (see its `copilot-instructions.md` for the
+processing side). Three plotting scripts, one shared scaling config.
+
+## Layout
+
+- `plot_scalar_summary.py` — approach A: all experiments of a lab in one
+  figure per scalar variable (absolute + anomaly + sea-level contribution).
+  Holds the `LABS` dict (per-lab data root, model_lab tag, experiment table).
+- `plot_scalar_exps.py` — approach B: one experiment per figure, 2D maps of
+  lithk change and grounded/floating/ice mask change vs end of historical.
+  Has its own copy of `LABS` (keep in sync with `plot_scalar_summary.py`).
+- `plot_init_velocity.py` — initial-state maps (first historical time step):
+  velocity magnitude, surface elevation (with ice shelves dark blue, ice-free
+  ocean light grey), and surface-elevation difference to the observational
+  forcing (`../Obs/BMA3_CISM3_sm6_v3_{16000,08000}m.nc`, C001 only).
+- `config.py` — shared scaling tables ONLY (`LITHK_VMAX`, `SCALAR_YLIM_ANOM`,
+  `SLC_YLIM`). **No `LABS` here** — import `LABS` from `plot_scalar_summary`.
+- Output dirs: `Plots/Summary/`, `Plots/Exps/`, `Plots/Init/`.
+
+## Environments & commands
+
+- Plotting python: `/nird/datapeak/NS11016K/miniforge3_26/envs/plotting/bin/python`
+  (matplotlib, netCDF4, numpy, cftime). The `nc` env used for processing has
+  **no matplotlib**.
+- Run: `<plotting python> plot_scalar_summary.py [--lab NORCE|NCAR|CISM8]
+  [--abs-only|--anom-only]`, `... plot_scalar_exps.py [--lab ...] [--exp C008]`,
+  `... plot_init_velocity.py [--lab ...]`.
+
+## Data conventions
+
+- Scalar files: one float32 data var on dim `time`; time = days since
+  1850-01-01, calendar standard. ST-type (lim, limnsw, iareagr, iareafl)
+  sampled Jan 1; FL-type (tend* fluxes) annual means at Jul 1 with `time_bnds`.
+- Gridded files: dims (time, y, x); 16 km grid 381×381, x/y −3040000..3040000 m
+  (CISM8: 761×761 at 8 km); crs epsg:3031. Years = origin + days/365.25.
+- Velocity: `xvelmean`/`yvelmean` in m s⁻¹ → m/yr via ×86400×365.25.
+- Masks: `sftgrf`/`sftflf` are fractional 0–1 (threshold at 0.5); `sftgif` is
+  binary 0/1.
+- Unit conversions: kg→Gt ×1e-12; kg s⁻¹→Gt/yr ×1e-12×86400×365.25;
+  m²→10⁶ km² ×1e-12; sea level: −361.8 Gt limnsw = +1 mm SLC.
+- Experiments: C001/C002 historical (CESM2-WACCM / MRI-ESM2-0, 1970–2014),
+  C003/C004 ssp370 (→2100), C005/C006 ssp126 (→2300), C007/C008 ssp585
+  (→2300), C009/C010 ctrl (→2300), C011 ocx (ERA, 1990–2025). NCAR lab has
+  only C001 + C007 (2000–2014 / 2015–2300).
+
+## Conventions & pitfalls
+
+- Anomaly reference = last historical time step (end 2014) of the same ESM
+  member; ocx has no historical predecessor → reference interpolated at 2015
+  from its own series.
+- Global y-axis scaling (from `config.py`) applies ONLY to anomaly plots;
+  absolute plots auto-scale.
+- `LITHK_VMAX` in `config.py` is guided by the largest ranges across all
+  labs (currently NCAR C007); the scripts print a WARNING when a field
+  exceeds the bound — update `config.py` then.
+- File naming: `{var}[-anom]_{model_lab}_{endyear}.png`; titles carry
+  `{exp_id} {exp} {esm}: ...` and no "rel. to end of historical" text.
+- An experiment may end before 2300 (e.g. CISM8 C007 ends 2224) — the
+  scripts plot the latest available year ≤ end_year.
+- `plt.get_cmap(name, N).colors` fails for LinearSegmentedColormap — use
+  `plt.get_cmap(name, N)` directly with `BoundaryNorm`.
+- `cp` is aliased interactive on the login node — use `\cp -f`.
+
+## Workflow conventions
+
+- User drives step-by-step; confirm before regenerating large plot batches.
+- Commit messages: concise imperative summary + bullet body of the
+  substantive changes.
