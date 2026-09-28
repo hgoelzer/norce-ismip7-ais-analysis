@@ -342,7 +342,7 @@ def plot_sea_level_contribution(series, end_year):
 
 
 def main():
-    global MODEL_LAB, DATA_ROOT, EXPERIMENTS
+    global MODEL_LAB, DATA_ROOT, EXPERIMENTS, OUT_DIR
 
     parser = argparse.ArgumentParser(description=__doc__)
     group = parser.add_mutually_exclusive_group()
@@ -364,6 +364,7 @@ def main():
     MODEL_LAB = lab_cfg["model_lab"]
     DATA_ROOT = os.path.normpath(lab_cfg["data_root"])
     EXPERIMENTS = lab_cfg["experiments"]
+    OUT_DIR = os.path.join(HERE, "Plots", "Summary", MODEL_LAB)
     print(f"Lab: {args.lab}, model: {args.model} ({MODEL_LAB}), "
           f"data root: {DATA_ROOT}")
 

@@ -219,7 +219,7 @@ def plot_mask_change(exp_id, exp, esm, member, end_year, var, tag, long_name,
     print(f"  wrote {out}")
 
 
-def plot_orog_snapshots(data_root, exp_id, exp, esm, model_lab):
+def plot_orog_snapshots(data_root, exp_id, exp, esm, model_lab, out_dir):
     """Plot masked surface elevation snapshots for an experiment."""
     paths = {var: find_file(data_root, exp_id, var)
              for var in ("orog", "sftflf", "sftgif")}
@@ -281,7 +281,7 @@ def plot_orog_snapshots(data_root, exp_id, exp, esm, model_lab):
             fig.tight_layout()
 
             fname = f"orog_{exp_id}_{model_lab}_{snapshot_year}.png"
-            out = os.path.join(OUT_DIR, fname)
+            out = os.path.join(out_dir, fname)
             fig.savefig(out, dpi=150)
             plt.close(fig)
             print(f"  wrote {out}")
@@ -311,10 +311,11 @@ def main():
     data_root = os.path.normpath(lab_cfg["data_root"])
     model_lab = lab_cfg["model_lab"]
     experiments = lab_cfg["experiments"]
+    out_dir = os.path.join(OUT_DIR, model_lab)
     print(f"Lab: {args.lab}, model: {args.model} ({model_lab}), "
           f"data root: {data_root}")
 
-    os.makedirs(OUT_DIR, exist_ok=True)
+    os.makedirs(out_dir, exist_ok=True)
 
     # historical reference fields per member (end of historical run)
     hist_map = hist_member_map(experiments)
@@ -356,12 +357,12 @@ def main():
             print(f"WARNING: no lithk file for {exp_id}, skipped")
             continue
         print(f"Processing {exp_id} {exp} ...")
-        plot_orog_snapshots(data_root, exp_id, exp, esm, model_lab)
+        plot_orog_snapshots(data_root, exp_id, exp, esm, model_lab, out_dir)
         years, x, y, lithk = read_lithk(path)
         ref_field = ref_fields[member]
         for end_year in END_YEARS:
             plot_lithk_anom(exp_id, exp, esm, member, end_year, ref_field,
-                            years, x, y, lithk, model_lab, OUT_DIR)
+                            years, x, y, lithk, model_lab, out_dir)
         # mask change plots
         for var, (tag, long_name) in MASK_VARS.items():
             mpath = find_file(data_root, exp_id, var)
@@ -377,7 +378,7 @@ def main():
             for end_year in END_YEARS:
                 plot_mask_change(exp_id, exp, esm, member, end_year, var,
                                  tag, long_name, ref_mask, years, x, y, m,
-                                 model_lab, OUT_DIR)
+                                 model_lab, out_dir)
 
     print("Done.")
 

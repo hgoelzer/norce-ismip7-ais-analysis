@@ -26,7 +26,9 @@ shared scaling config.
   selected lab/model combination; accepts repeatable `--exp` filters for maps.
 - `config.py` — shared scaling tables ONLY (`LITHK_VMAX`, `SCALAR_YLIM_ANOM`,
   `SLC_YLIM`). **No `LABS` here** — import `LABS` from `plot_scalar_summary`.
-- Output dirs: `Plots/Summary/`, `Plots/Exps/`, `Plots/Init/`.
+- Output dirs are grouped by `model_lab`: `Plots/{Summary,Exps,Init}/CISM_NORCE/`,
+  `CISM8_NORCE/`, or `CISM_NCAR/`. Model-independent observation plots remain
+  directly in `Plots/Init/`.
 
 ## Environments & commands
 

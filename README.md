@@ -73,9 +73,10 @@ plot families.
 
 The scripts create output folders as needed:
 
-- `Plots/Summary/` for scalar time-series figures.
-- `Plots/Exps/` for per-experiment map figures.
-- `Plots/Init/` for initial-state figures.
+- `Plots/Summary/{model_lab}/` for scalar time-series figures.
+- `Plots/Exps/{model_lab}/` for per-experiment map figures.
+- `Plots/Init/{model_lab}/` for model-specific initial-state figures.
+- Model-independent observation figures remain in `Plots/Init/`.
 
 ## Expected figures
 

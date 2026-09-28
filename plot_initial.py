@@ -314,6 +314,8 @@ def main():
     data_root = os.path.normpath(lab_cfg["data_root"])
     model_lab = lab_cfg["model_lab"]
     experiments = lab_cfg["experiments"]
+    model_out_dir = os.path.join(OUT_DIR, model_lab)
+    os.makedirs(model_out_dir, exist_ok=True)
     print(f"Lab: {args.lab}, model: {args.model} ({model_lab}), "
           f"data root: {data_root}")
 
@@ -329,7 +331,7 @@ def main():
             print(f"Processing {exp_id} ({esm}) ... "
                   f"max speed {np.nanmax(speed):.1f} m/yr")
             plot_init_velocity(exp_id, esm, member, x, y, speed, model_lab,
-                               OUT_DIR)
+                         model_out_dir)
         # surface elevation, with ice shelves in the lowest (dark blue)
         # color and ice-free ocean in light grey
         res = read_first_field(data_root, exp_id, "orog")
@@ -355,7 +357,7 @@ def main():
                 exp_id, esm, member, x, y, orog, OROG_LEVELS, "terrain",
                 "surface elevation [m]", "orog",
                 f"{exp_id} historical {esm}: initial surface elevation [m]",
-                model_lab, OUT_DIR, bad_color=OCEAN_COLOR)
+                model_lab, model_out_dir, bad_color=OCEAN_COLOR)
         # surface elevation difference to observations (C001 only)
         if exp_id == "C001":
             res = read_first_field(data_root, exp_id, "orog")
@@ -365,7 +367,7 @@ def main():
                 x, y, orog = res
                 print(f"Processing {exp_id} ({esm}) orog difference ...")
                 plot_orog_diff(exp_id, esm, member, x, y, orog, model_lab,
-                               OUT_DIR)
+                               model_out_dir)
 
     print("Done.")
 
