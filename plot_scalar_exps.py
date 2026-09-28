@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-plot_scalar_exps.py -- ISMIP7 NORCE AIS per-experiment plots (approach B).
+plot_scalar_exps.py -- ISMIP7 AIS per-experiment plots (approach B).
 
 One plot per experiment: 2D maps of lithk (ice thickness) change relative
 to the end of the historical experiment (end of 2014) of the same ESM
@@ -15,7 +15,8 @@ skipped.
 
 Run with the 'plotting' environment:
   /nird/datapeak/NS11016K/miniforge3_26/envs/plotting/bin/python plot_scalar_exps.py
-Optional flags: --lab {NORCE,NCAR,CISM8}, --exp C008 (repeatable)
+Optional flags: --lab {NORCE,NCAR}, --model {CISM,CISM8},
+                --exp C008 (repeatable)
 """
 
 import os
@@ -39,6 +40,8 @@ MASK_VARS = {
     "sftgif": ("ice-mask", "ice mask"),
 }
 MASK_THRESH = 0.5  # fractional fields (sftgrf/sftflf) -> binary at 0.5
+OROG_SNAPSHOT_YEARS = (2015, 2030, 2100, 2200, 2300)
+OROG_LEVELS = np.arange(0, 4500, 500)
 
 # ---------------------------------------------------------------------------
 # Configuration (kept consistent with plot_scalar_summary.py)
@@ -216,6 +219,74 @@ def plot_mask_change(exp_id, exp, esm, member, end_year, var, tag, long_name,
     print(f"  wrote {out}")
 
 
+def plot_orog_snapshots(data_root, exp_id, exp, esm, model_lab):
+    """Plot masked surface elevation snapshots for an experiment."""
+    paths = {var: find_file(data_root, exp_id, var)
+             for var in ("orog", "sftflf", "sftgif")}
+    missing = [var for var, path in paths.items() if path is None]
+    if missing:
+        print(f"WARNING: missing {', '.join(missing)} for {exp_id}, "
+              "orog snapshots skipped")
+        return
+
+    with nc.Dataset(paths["orog"]) as orog_ds, \
+            nc.Dataset(paths["sftflf"]) as floating_ds, \
+            nc.Dataset(paths["sftgif"]) as ice_ds:
+        time_var = orog_ds.variables["time"]
+        times = time_var[:]
+        dates = nc.num2date(
+            times, time_var.units,
+            calendar=getattr(time_var, "calendar", "standard"))
+        # ST fields are dated Jan 1 of the year after the represented model year.
+        sample_years = np.asarray([date.year - 1 for date in dates])
+        if (len(floating_ds.variables["time"]) != len(times)
+                or len(ice_ds.variables["time"]) != len(times)):
+            print(f"WARNING: inconsistent time dimensions for {exp_id}, "
+                  "orog snapshots skipped")
+            return
+
+        x = np.asarray(orog_ds.variables["x"][:])
+        y = np.asarray(orog_ds.variables["y"][:])
+        for snapshot_year in OROG_SNAPSHOT_YEARS:
+            valid = np.flatnonzero(sample_years <= snapshot_year)
+            if not valid.size:
+                print(f"  WARNING: no orog data through {snapshot_year} for "
+                      f"{exp_id}, skipped")
+                continue
+            index = valid[-1]
+            field = np.ma.filled(orog_ds.variables["orog"][index], np.nan)
+            floating = np.ma.filled(
+                floating_ds.variables["sftflf"][index], np.nan) > MASK_THRESH
+            ice = np.ma.filled(ice_ds.variables["sftgif"][index], np.nan) > MASK_THRESH
+            field = np.where(floating, OROG_LEVELS[0], field)
+            field = np.where(ice, field, np.nan)
+            actual_year = int(sample_years[index])
+
+            fig, ax = plt.subplots(figsize=(8, 8))
+            cmap = plt.get_cmap("terrain", len(OROG_LEVELS) - 1)
+            cmap.set_bad("lightgrey")
+            norm = BoundaryNorm(OROG_LEVELS, cmap.N, clip=True)
+            im = ax.pcolormesh(x / 1000, y / 1000, field, cmap=cmap,
+                               norm=norm, shading="auto", rasterized=True)
+            ax.set_aspect("equal")
+            title = (f"{exp_id} {exp} {esm}: surface elevation [m] "
+                     f"({actual_year})")
+            if actual_year != snapshot_year:
+                title += f"; latest available for {snapshot_year}"
+            ax.set_title(title, fontsize=11)
+            ax.set_xlabel("x [km]")
+            ax.set_ylabel("y [km]")
+            cbar = fig.colorbar(im, ax=ax, shrink=0.8)
+            cbar.set_label("surface elevation [m]")
+            fig.tight_layout()
+
+            fname = f"orog_{exp_id}_{model_lab}_{snapshot_year}.png"
+            out = os.path.join(OUT_DIR, fname)
+            fig.savefig(out, dpi=150)
+            plt.close(fig)
+            print(f"  wrote {out}")
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -223,18 +294,25 @@ def plot_mask_change(exp_id, exp, esm, member, end_year, var, tag, long_name,
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--lab", choices=sorted(LABS), default="NORCE",
+    parser.add_argument("--lab", choices=("NORCE", "NCAR"), default="NORCE",
                         help="which lab's data to plot (default: NORCE)")
+    parser.add_argument("--model", choices=("CISM", "CISM8"),
+                        default="CISM",
+                        help="which model resolution to plot (default: CISM)")
     parser.add_argument("--exp", action="append", default=None,
                         help="experiment id to plot (repeatable, e.g. "
                              "--exp C008); default: all non-historical exps")
     args = parser.parse_args()
 
-    lab_cfg = LABS[args.lab]
+    if args.model == "CISM8" and args.lab != "NORCE":
+        parser.error("--model CISM8 is currently available only for --lab NORCE")
+    dataset_key = "CISM8" if args.model == "CISM8" else args.lab
+    lab_cfg = LABS[dataset_key]
     data_root = os.path.normpath(lab_cfg["data_root"])
     model_lab = lab_cfg["model_lab"]
     experiments = lab_cfg["experiments"]
-    print(f"Lab: {args.lab} ({model_lab}), data root: {data_root}")
+    print(f"Lab: {args.lab}, model: {args.model} ({model_lab}), "
+          f"data root: {data_root}")
 
     os.makedirs(OUT_DIR, exist_ok=True)
 
@@ -278,6 +356,7 @@ def main():
             print(f"WARNING: no lithk file for {exp_id}, skipped")
             continue
         print(f"Processing {exp_id} {exp} ...")
+        plot_orog_snapshots(data_root, exp_id, exp, esm, model_lab)
         years, x, y, lithk = read_lithk(path)
         ref_field = ref_fields[member]
         for end_year in END_YEARS:

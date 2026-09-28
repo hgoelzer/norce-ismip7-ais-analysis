@@ -2,20 +2,28 @@
 
 Plotting and analysis of the ISMIP7-compliant NetCDF output produced by
 `../norce-ismip7-ais-processing/` (see its `copilot-instructions.md` for the
-processing side). Three plotting scripts, one shared scaling config.
+processing side). Three plotting scripts, one all-plots wrapper, and one
+shared scaling config.
 
 ## Layout
 
-- `plot_scalar_summary.py` — approach A: all experiments of a lab in one
+- `plot_scalar_summary.py` — approach A: all experiments of a lab/model in one
   figure per scalar variable (absolute + anomaly + sea-level contribution).
   Holds the `LABS` dict (per-lab data root, model_lab tag, experiment table).
-- `plot_scalar_exps.py` — approach B: one experiment per figure, 2D maps of
-  lithk change and grounded/floating/ice mask change vs end of historical.
+- `plot_scalar_exps.py` — approach B: per-experiment 2D maps of lithk and
+  grounded/floating/ice-mask changes vs end of historical, plus orography
+  snapshots for model years 2015, 2030, 2100, 2200, and 2300.
   Has its own copy of `LABS` (keep in sync with `plot_scalar_summary.py`).
-- `plot_init_velocity.py` — initial-state maps (first historical time step):
+- `plot_initial.py` — initial-state maps for C001 (first historical time step;
+  C002 omitted because its initial fields are nearly identical):
   velocity magnitude, surface elevation (with ice shelves dark blue, ice-free
   ocean light grey), and surface-elevation difference to the observational
   forcing (`../Obs/BMA3_CISM3_sm6_v3_{16000,08000}m.nc`, C001 only).
+  `--observations` plots all six BMA3 fields on both grids once, independently
+  of the selected lab/model, including `init-orog_OBS_{16,8}km.png` in the
+  same discrete terrain style as model orography plots.
+- `run_all_plots.py` — runs the three plotting scripts sequentially for one
+  selected lab/model combination; accepts repeatable `--exp` filters for maps.
 - `config.py` — shared scaling tables ONLY (`LITHK_VMAX`, `SCALAR_YLIM_ANOM`,
   `SLC_YLIM`). **No `LABS` here** — import `LABS` from `plot_scalar_summary`.
 - Output dirs: `Plots/Summary/`, `Plots/Exps/`, `Plots/Init/`.
@@ -25,9 +33,14 @@ processing side). Three plotting scripts, one shared scaling config.
 - Plotting python: `/nird/datapeak/NS11016K/miniforge3_26/envs/plotting/bin/python`
   (matplotlib, netCDF4, numpy, cftime). The `nc` env used for processing has
   **no matplotlib**.
-- Run: `<plotting python> plot_scalar_summary.py [--lab NORCE|NCAR|CISM8]
-  [--abs-only|--anom-only]`, `... plot_scalar_exps.py [--lab ...] [--exp C008]`,
-  `... plot_init_velocity.py [--lab ...]`.
+- Select datasets with `--lab NORCE|NCAR` and `--model CISM|CISM8` (both
+  default to NORCE/CISM); supported pairs are NORCE/CISM, NCAR/CISM, and
+  NORCE/CISM8.
+- Run: `<plotting python> plot_scalar_summary.py [--lab ...] [--model ...]
+  [--abs-only|--anom-only]`, `... plot_scalar_exps.py [--lab ...] [--model ...]
+  [--exp C008]`, `... plot_initial.py [--lab ...] [--model ...]`.
+- Generate all plot families in one call: `<plotting python> run_all_plots.py
+  [--lab ...] [--model ...] [--abs-only|--anom-only] [--exp C008]`.
 
 ## Data conventions
 

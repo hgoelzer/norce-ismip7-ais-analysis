@@ -131,11 +131,10 @@ SCALAR_YLIM_ANOM = {
 }
 
 # sea-level contribution [mm]: end_year -> (ymin, ymax)
-# Guide: NORCE C007 (ssp585) upper bound; CISM8 C007 (ssp585, CESM2,
-# 2015-2224) dips to -43 mm at 2100 and reaches +93 mm at 2224.
+# Bounds cover the full range across NORCE/CISM, NORCE/CISM8, and NCAR/CISM.
 SLC_YLIM = {
     2030: (-15, 15),
-    2100: (-50, 70),
-    2200: (-300, 100),
-    2300: (-1350, 100),
+    2100: (-80, 15),
+    2200: (-100, 320),
+    2300: (-100, 1400),
 }

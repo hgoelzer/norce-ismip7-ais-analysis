@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """
-plot_scalar_summary.py -- ISMIP7 NORCE AIS scalar summary plots (approach A).
+plot_scalar_summary.py -- ISMIP7 AIS scalar summary plots (approach A).
 
 Plots scalar ISMIP7 variables for all 11 experiments (C001-C011) of the
-NORCE CISM ensemble in one figure per variable. Output: one PNG per
+selected lab/model dataset in one figure per variable. Output: one PNG per
 variable in Plots/Summary/.
 
 Time series handling:
@@ -24,11 +24,12 @@ full range ending 2300), e.g. limnsw-anom_CISM_NORCE_2100.png.
 
 Additionally, a sea-level contribution figure is derived from limnsw
 anomalies: -361.8 Gt of mass above flotation = +1 mm sea-level
-contribution (limnsw-sea_level_CISM_NORCE_{end}.png).
+contribution (sea-level_CISM_NORCE_{end}.png).
 
 Run with the 'plotting' environment:
   /nird/datapeak/NS11016K/miniforge3_26/envs/plotting/bin/python plot_scalar_summary.py
-Optional flags: --abs-only, --anom-only, --lab {NORCE,NCAR,CISM8}
+Optional flags: --abs-only, --anom-only, --lab {NORCE,NCAR},
+                --model {CISM,CISM8}
 """
 
 import os
@@ -139,7 +140,7 @@ SKIP_VARS = {"tendlifmassbf", "tendligroundf"}
 GT_PER_MM_SL = 361.8
 
 # Model/lab tag and end years for output file names
-MODEL_LAB = "CISM_NORCE"  # default; overridden by --lab
+MODEL_LAB = "CISM_NORCE"  # default; selected by --lab and --model
 END_YEARS = (2030, 2100, 2200, 2300)
 
 # Active lab configuration (set in main())
@@ -329,7 +330,7 @@ def plot_sea_level_contribution(series, end_year):
     ax.legend(loc="best", fontsize=8, ncol=2)
     fig.tight_layout()
 
-    out = os.path.join(OUT_DIR, f"limnsw-sea_level_{MODEL_LAB}_{end_year}.png")
+    out = os.path.join(OUT_DIR, f"sea-level_{MODEL_LAB}_{end_year}.png")
     fig.savefig(out, dpi=150)
     plt.close(fig)
     print(f"  wrote {out}")
@@ -349,15 +350,22 @@ def main():
                        help="plot only absolute values")
     group.add_argument("--anom-only", action="store_true",
                        help="plot only anomalies rel. to end of historical")
-    parser.add_argument("--lab", choices=sorted(LABS), default="NORCE",
+    parser.add_argument("--lab", choices=("NORCE", "NCAR"), default="NORCE",
                         help="which lab's data to plot (default: NORCE)")
+    parser.add_argument("--model", choices=("CISM", "CISM8"),
+                        default="CISM",
+                        help="which model resolution to plot (default: CISM)")
     args = parser.parse_args()
 
-    lab_cfg = LABS[args.lab]
+    if args.model == "CISM8" and args.lab != "NORCE":
+        parser.error("--model CISM8 is currently available only for --lab NORCE")
+    dataset_key = "CISM8" if args.model == "CISM8" else args.lab
+    lab_cfg = LABS[dataset_key]
     MODEL_LAB = lab_cfg["model_lab"]
     DATA_ROOT = os.path.normpath(lab_cfg["data_root"])
     EXPERIMENTS = lab_cfg["experiments"]
-    print(f"Lab: {args.lab} ({MODEL_LAB}), data root: {DATA_ROOT}")
+    print(f"Lab: {args.lab}, model: {args.model} ({MODEL_LAB}), "
+          f"data root: {DATA_ROOT}")
 
     do_abs = not args.anom_only
     do_anom = not args.abs_only

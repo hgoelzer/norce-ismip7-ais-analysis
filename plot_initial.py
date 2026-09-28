@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """
-plot_init_velocity.py -- ISMIP7 NORCE AIS initial state maps.
+plot_initial.py -- ISMIP7 AIS initial-state and observation maps.
 
-Plots the initial state (first time step of the historical experiments
-C001/C002):
+Plots the initial state (first time step of historical experiment C001).
+C002 is omitted because its initial fields are nearly identical to C001.
 
   - ice velocity magnitude (from xvelmean/yvelmean, m s-1 -> m/yr) on a
     log-like scale with levels 0.1, 0.3, 1, 3, 10, 30, 100, 300, 1000,
@@ -14,15 +14,15 @@ C001/C002):
     forcing (BMA3_CISM3_sm6_v3, usurf), red/blue diverging colormap;
     only for C001
 
-One PNG per historical experiment, variable and lab:
+Initial-state PNGs for C001, plus an orography difference to observations:
 
   init-velocity_C001_CISM_NORCE.png
   init-orog_C001_CISM_NORCE.png
   init-orog-diff_C001_CISM_NORCE.png
 
 Run with the 'plotting' environment:
-  /nird/datapeak/NS11016K/miniforge3_26/envs/plotting/bin/python plot_init_velocity.py
-Optional flags: --lab {NORCE,NCAR,CISM8}
+    /nird/datapeak/NS11016K/miniforge3_26/envs/plotting/bin/python plot_initial.py
+Optional flags: --lab {NORCE,NCAR}, --model {CISM,CISM8}, --observations
 """
 
 import os
@@ -35,7 +35,8 @@ import netCDF4 as nc
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.colors import BoundaryNorm, ListedColormap, TwoSlopeNorm
+from matplotlib.colors import (BoundaryNorm, ListedColormap, Normalize,
+                               TwoSlopeNorm)
 
 from plot_scalar_summary import LABS
 
@@ -46,6 +47,14 @@ OUT_DIR = os.path.join(HERE, "Plots", "Init")
 OBS_DIR = os.path.normpath(os.path.join(HERE, "..", "Obs"))
 OBS_FILES = {16000.0: "BMA3_CISM3_sm6_v3_16000m.nc",
              8000.0: "BMA3_CISM3_sm6_v3_08000m.nc"}
+OBS_FIELD_INFO = {
+    "topg": ("bedrock topography", "m"),
+    "usurf": ("ice upper surface elevation", "m"),
+    "thk": ("ice thickness", "m"),
+    "lsurf": ("ice lower surface elevation", "m"),
+    "grounded_mask": ("grounded ice mask", "mask"),
+    "floating_mask": ("floating ice mask", "mask"),
+}
 
 # log-like levels [m/yr]
 LEVELS = np.array([0.1, 0.3, 1, 3, 10, 30, 100, 300, 1000, 3000])
@@ -147,6 +156,99 @@ def read_obs_usurf(dx):
     return x, y, usurf
 
 
+def read_observation_fields(dx):
+    """Return coordinates and all observed fields for one grid spacing."""
+    fname = OBS_FILES[float(dx)]
+    path = os.path.join(OBS_DIR, fname)
+    with nc.Dataset(path) as ds:
+        x = np.asarray(ds.variables["x1"][:])
+        y = np.asarray(ds.variables["y1"][:])
+        fields = {
+            name: np.ma.filled(ds.variables[name][0], np.nan)
+            for name in OBS_FIELD_INFO
+        }
+    return x, y, fields
+
+
+def plot_observed_field(var, long_name, units, dx_km, x, y, field,
+                        cmap, norm):
+    """Plot one observed field, with shared normalization across grids."""
+    fig, ax = plt.subplots(figsize=(8, 8))
+    if isinstance(cmap, ListedColormap):
+        cmap = cmap.copy()
+    else:
+        cmap = plt.get_cmap(cmap).copy()
+    cmap.set_bad("lightgrey")
+    im = ax.pcolormesh(x / 1000, y / 1000, field, cmap=cmap, norm=norm,
+                       shading="auto", rasterized=True)
+    ax.set_aspect("equal")
+    ax.set_title(f"BMA3 observed {long_name} ({dx_km} km)", fontsize=11)
+    ax.set_xlabel("x [km]")
+    ax.set_ylabel("y [km]")
+    cbar = fig.colorbar(im, ax=ax, shrink=0.8)
+    if units == "mask":
+        cbar.set_ticks([0, 1], labels=["0", "1"])
+        cbar.set_label("mask value")
+    else:
+        cbar.set_label(f"{long_name} [{units}]")
+    fig.tight_layout()
+    fname = f"obs-{var}_{dx_km}km.png"
+    out = os.path.join(OUT_DIR, fname)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    print(f"  wrote {out}")
+
+
+def plot_observations():
+    """Plot the observational fields once for every available grid."""
+    grids = []
+    for dx in OBS_FILES:
+        path = os.path.join(OBS_DIR, OBS_FILES[dx])
+        if not os.path.isfile(path):
+            print(f"WARNING: observation file not found: {path}, skipped")
+            continue
+        grids.append((int(dx / 1000), *read_observation_fields(dx)))
+
+    if not grids:
+        print("WARNING: no observation files found, no plots written")
+        return
+
+    for var, (long_name, units) in OBS_FIELD_INFO.items():
+        values = np.concatenate([
+            fields[var][np.isfinite(fields[var])] for _, _, _, fields in grids
+        ])
+        if values.size == 0:
+            print(f"WARNING: no valid values for observed {var}, skipped")
+            continue
+
+        if units == "mask":
+            cmap = ListedColormap(["lightgrey", "#277da1"])
+            norm = BoundaryNorm((-0.5, 0.5, 1.5), cmap.N)
+        elif var in ("topg", "lsurf"):
+            vmax = float(np.max(np.abs(values)))
+            cmap = "RdBu_r"
+            norm = TwoSlopeNorm(vmin=-vmax, vcenter=0.0, vmax=vmax)
+        else:
+            cmap = "terrain" if var == "usurf" else "viridis"
+            norm = Normalize(vmin=float(np.min(values)),
+                             vmax=float(np.max(values)))
+
+        for dx_km, x, y, fields in grids:
+            plot_observed_field(var, long_name, units, dx_km, x, y,
+                                fields[var], cmap, norm)
+
+    for dx_km, x, y, fields in grids:
+        floating = fields["floating_mask"] > MASK_THRESH
+        ice = (fields["grounded_mask"] > MASK_THRESH) | floating
+        observed_orog = np.where(floating, OROG_LEVELS[0], fields["usurf"])
+        observed_orog = np.where(ice, observed_orog, np.nan)
+        plot_init_field(
+            "OBS", "BMA3", "observations", x, y, observed_orog,
+            OROG_LEVELS, "terrain", "surface elevation [m]", "orog",
+            f"BMA3 observations: initial surface elevation ({dx_km} km) [m]",
+            f"{dx_km}km", OUT_DIR, bad_color=OCEAN_COLOR)
+
+
 def plot_orog_diff(exp_id, esm, member, x, y, orog, model_lab, out_dir):
     """Plot model minus observed surface elevation (red/blue)."""
     dx = float(x[1] - x[0])
@@ -190,20 +292,33 @@ def plot_orog_diff(exp_id, esm, member, x, y, orog, model_lab, out_dir):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--lab", choices=sorted(LABS), default="NORCE",
+    parser.add_argument("--lab", choices=("NORCE", "NCAR"), default="NORCE",
                         help="which lab's data to plot (default: NORCE)")
+    parser.add_argument("--model", choices=("CISM", "CISM8"),
+                        default="CISM",
+                        help="which model resolution to plot (default: CISM)")
+    parser.add_argument("--observations", action="store_true",
+                        help="plot observed fields at both resolutions and exit")
     args = parser.parse_args()
 
-    lab_cfg = LABS[args.lab]
+    os.makedirs(OUT_DIR, exist_ok=True)
+    if args.observations:
+        plot_observations()
+        print("Done.")
+        return
+
+    if args.model == "CISM8" and args.lab != "NORCE":
+        parser.error("--model CISM8 is currently available only for --lab NORCE")
+    dataset_key = "CISM8" if args.model == "CISM8" else args.lab
+    lab_cfg = LABS[dataset_key]
     data_root = os.path.normpath(lab_cfg["data_root"])
     model_lab = lab_cfg["model_lab"]
     experiments = lab_cfg["experiments"]
-    print(f"Lab: {args.lab} ({model_lab}), data root: {data_root}")
-
-    os.makedirs(OUT_DIR, exist_ok=True)
+    print(f"Lab: {args.lab}, model: {args.model} ({model_lab}), "
+          f"data root: {data_root}")
 
     for exp_id, (exp, esm, member, _, _) in experiments.items():
-        if exp != "historical":
+        if exp_id != "C001" or exp != "historical":
             continue
         # velocity magnitude
         res = read_first_speed(data_root, exp_id)
